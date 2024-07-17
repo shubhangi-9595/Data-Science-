@@ -1,0 +1,73 @@
+---
+title: "Untitled"
+author: "Shubhangi Kaushik and Blessy Rajan"
+date: "2023-06-16"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+'if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("GEOquery")'
+library(GEOquery)
+library(data.table)
+library(dplyr)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+data = getGEO("GSE183030")
+gse183030 = exprs (data[[1]])
+gse183030<-data.frame(gse183030)
+gse183030
+write.csv(gse183030,file="gse183030")
+gene<-fread("C:/Users/bless/OneDrive/MS_Studies/AML/assignment5/gse183030/GeneNames.txt")
+gene<-data.frame(head(gene,154))
+gene
+gse183030<-cbind(Gene=gene$Name,gse183030)
+gse183030
+
+anno<-fread("C:/Users/bless/OneDrive/MS_Studies/AML/assignment5/GO_Annotated.csv")
+#interact(anno$Gene_Symbol,gene$Name)
+similar<-anno$Gene_Symbol[anno$Gene_Symbol %in% gene$Name]
+write.csv(similar,file = "similar.csv")
+
+matched_rows <- data.frame()
+
+for (i in similar) {
+  # Subset the data frame based on the condition
+  matching_row <- subset(gse183030, Gene == i)
+  
+  # Check if any matching rows were found
+  if (nrow(matching_row) > 0) {
+    # Append the matching rows to the result data frame
+    matched_rows <- rbind(matched_rows, matching_row)
+  }
+}
+#write.csv(matched_rows,file="Match_gse.csv")
+print(matched_rows)
+```
+```{r}
+
+
+#gse183030
+#pData(data[[1]])
+
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

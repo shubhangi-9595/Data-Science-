@@ -1,0 +1,250 @@
+---
+title: "project_5 aml"
+author: "Shubhangi Kaushik and Blessy Rajan"
+date: "2023-06-15"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Installing the required packages
+
+```{r}
+
+'if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("GEOquery")'
+
+
+library(readxl)
+library(GEOquery)
+
+
+'if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("DESeq2")'
+
+library(DESeq2)
+library(tibble)
+```
+
+## Retrieving data from GEO ids and merging them
+
+```{r}
+
+#Ids which were representing 64.5% of the data and had data for all subtypes
+gse_ids<-c(50006,79196,53820,55267,16455,27928,39577,9656)
+
+p_data<-list()
+expr_mat<-list()
+for (i in 1:length(gse_ids)) {
+  cur_gse_id<-paste0("GSE",gse_ids[i])
+  data<-getGEO(cur_gse_id)
+  assign(paste0("gse", gse_ids[i]), exprs(data[[1]])) #getting expression matrix for the geoid
+  expr_mat[[i]] <- exprs(data[[1]])
+  p_data[[i]] <- pData(data[[1]])
+  print(paste(gse_ids[i]," done!")) #to check the progress
+}
+
+#df for the labels of each gsm id
+metadata_df<-data.frame(gse_id=character(), gsm_id=character(), source_name_ch1=character(), stringsAsFactors=FALSE)
+for (i in 1:length(p_data)) {
+  gsm_id <- p_data[[i]]$geo_accession
+  source_name_ch1 <- p_data[[i]]$source_name_ch1
+  gse_id <- rep(gse_ids[i], length(gsm_id))
+  metadata_df <- rbind(metadata_df, data.frame(gse_id, gsm_id, source_name_ch1, stringsAsFactors = FALSE))
+}
+
+
+#dataframe for the expression data of all gse files combined
+combined_expr_mat <- expr_mat[[1]]
+
+#merging all matrices together based on row_id
+for (i in 2:length(expr_mat)) {
+  df1 <- as.data.frame(combined_expr_mat)
+  df2 <- as.data.frame(expr_mat[[i]])
+  combined_expr_mat <- merge(df1, df2, by = "row.names", all = TRUE)
+  combined_expr_mat[is.na(combined_expr_mat)] <- 0
+  rownames(combined_expr_mat) <- combined_expr_mat[, 1]
+  combined_expr_mat <- combined_expr_mat[, -1]
+  columns_to_drop <- names(combined_expr_mat)[grepl("\\.y$", names(combined_expr_mat))] #in case there were two columns with same name
+  combined_expr_mat <- combined_expr_mat[, !(names(combined_expr_mat) %in% columns_to_drop)]
+  print(paste(gse_ids[i]," merged!")) #to check the progress
+}
+
+
+write.table(metadata_df, file = "metadata.txt", sep = "\t", append = FALSE, quote = FALSE, row.names = FALSE, col.names = TRUE)
+
+
+writeLines(paste0("\t", paste0(colnames(combined_expr_mat), collapse = "\t")), "combined_exp_matrix.txt")
+write.table(combined_expr_mat, file = "combined_exp_matrix.txt", sep = "\t", append = FALSE, quote = FALSE, row.names = TRUE, col.names = FALSE)
+
+
+```
+
+## Updating  the labels in metadata file
+
+```{r}
+library(data.table)
+metadata_df<-fread("metadata.txt") #Update the path if needed
+metadata_df<-data.frame(metadata_df)
+Subtypes<-data.frame()
+unique(metadata_df$gse_id)
+#metadata_df
+metadata_df$Subtype<-rep(NA, nrow(metadata_df))
+#metadata_df
+for(i in 1:nrow(metadata_df))
+  {
+    if(metadata_df$gse_id[i]=="50006")
+    {
+      #print(paste(i,"###############",metadata_df$gse_id[i],metadata_df$gsm_id[i],metadata_df$Subtype[i],metadata_df$source_name_ch1[i]))
+      if(metadata_df$source_name_ch1[i]=="Normal B cells")
+      {
+        metadata_df$Subtype[i]="Normal"
+        #print(paste(i,"###############",metadata_df$gse_id[i],metadata_df$gsm_id[i],metadata_df$Subtype[i],metadata_df$source_name_ch1[i]))
+      }
+      else
+      {
+        metadata_df$Subtype[i]="CLL/SLL"
+        #print(paste(i,"###############",metadata_df$gse_id[i],metadata_df$gsm_id[i],metadata_df$Subtype[i],metadata_df$source_name_ch1[i]))
+      }
+    }
+  
+  
+  ##########################################3
+  
+  if(metadata_df$gse_id[i]=="53820")
+    {
+      metadata_df$Subtype[i]="FL"
+      #print(paste(i,"###############",metadata_df$gse_id[i],metadata_df$gsm_id[i],metadata_df$Subtype[i],metadata_df$source_name_ch1[i]))
+  }
+  
+  
+  ##############################################3
+    
+  if(metadata_df$gse_id[i]=="27928")
+  {
+    metadata_df$Subtype[i]="Normal"
+    #print(paste(i,"###############",metadata_df$gse_id[i],metadata_df$gsm_id[i],metadata_df$Subtype[i],metadata_df$source_name_ch1[i]))
+  }
+  
+  #########################################
+  if(metadata_df$gse_id[i]=="55267")
+  {
+    #print(paste(i,"###############",metadata_df$gse_id[i],metadata_df$gsm_id[i],metadata_df$Subtype[i],metadata_df$source_name_ch1[i]))
+    if(metadata_df$source_name_ch1[i]=="Pre-treated fresh frozen FL biopsy")
+    {
+      metadata_df$Subtype[i]="FL"
+      #print(paste(i,"###############",metadata_df$gse_id[i],metadata_df$gsm_id[i],metadata_df$Subtype[i],metadata_df$source_name_ch1[i]))
+    }
+    else
+    {
+      metadata_df$Subtype[i]="Normal"
+      #print(paste(i,"###############",metadata_df$gse_id[i],metadata_df$gsm_id[i],metadata_df$Subtype[i],metadata_df$source_name_ch1[i]))
+    }
+  }
+  ##################################################3
+  if(metadata_df$gse_id[i]=="39577")
+  {
+    metadata_df$Subtype[i]=ifelse(grepl("MALT",metadata_df$source_name_ch1[i],ignore.case = TRUE),"MZL","FL")
+    #print(paste(i,"###############",metadata_df$gse_id[i],metadata_df$gsm_id[i],metadata_df$Subtype[i],metadata_df$source_name_ch1[i]))
+  }
+  
+  ################################################
+  if(metadata_df$gse_id[i]=="9656")
+  {
+    metadata_df$Subtype[i]="LPL/WM"
+    #print(paste(i,"###############",metadata_df$gse_id[i],metadata_df$gsm_id[i],metadata_df$Subtype[i],metadata_df$source_name_ch1[i]))
+  }
+  #########################################
+  if(metadata_df$gse_id[i]=="79196")
+  {
+    metadata_df$Subtype[i]=ifelse(grepl("CLL",metadata_df$source_name_ch1[i],ignore.case = TRUE),"CLL/SLL",ifelse(grepl("MCL",metadata_df$source_name_ch1[i],ignore.case = TRUE),"MCL",ifelse(grepl("FL",metadata_df$source_name_ch1[i],ignore.case = TRUE),"FL",ifelse(grepl("HCL",metadata_df$source_name_ch1[i],ignore.case = TRUE),"Other",ifelse(grepl("LPL",metadata_df$source_name_ch1[i],ignore.case = TRUE),"LPL",ifelse(grepl("SDRPL",metadata_df$source_name_ch1[i],ignore.case = TRUE),"Other",ifelse(grepl("SMZL",metadata_df$source_name_ch1[i],ignore.case = TRUE),"MZL","Other")))))))
+    #metadata_df$Subtype[i]="LPL/WM"
+    #print(paste(i,"###############",metadata_df$gse_id[i],metadata_df$gsm_id[i],metadata_df$Subtype[i],metadata_df$source_name_ch1[i]))
+  }
+  ######################################################
+  if(metadata_df$gse_id[i]=="16455")
+  {
+      
+      metadata_df$Subtype[i]=ifelse(grepl("MCL",metadata_df$source_name_ch1[i],ignore.case = TRUE),"MCL",ifelse(grepl("LF",metadata_df$source_name_ch1[i],ignore.case = TRUE),"FL",ifelse(grepl("HCL",metadata_df$source_name_ch1[i],ignore.case = TRUE),"Other",ifelse(grepl("LPL",metadata_df$source_name_ch1[i],ignore.case = TRUE),"LPL",ifelse(grepl("CLL",metadata_df$source_name_ch1[i],ignore.case = TRUE),"CLL/SLL",ifelse(grepl("SMLZ",metadata_df$source_name_ch1[i],ignore.case = TRUE),"MZL","Other"))))))
+     #print(paste(i,"###############",metadata_df$gse_id[i],metadata_df$gsm_id[i],metadata_df$Subtype[i],metadata_df$source_name_ch1[i]))
+  }
+  
+}
+metadata_df
+write.table(metadata_df, file = "metadata_with_labels.txt", sep = "\t", append = TRUE, quote = FALSE, row.names = FALSE, col.names = TRUE)
+
+```
+```{r}
+
+```
+
+## DESeq Analysis
+
+```{r}
+new_meta<-data.frame(metadata_df[,c(2,4)])
+new_meta
+#row.names(new_meta)<-metadata_df$gsm_id
+#new_meta<-data.frame(new_meta[,-1])
+new_meta<-unique(new_meta)
+colnames(new_meta)[2]<-"Subtype"
+new_meta
+no_met <- new_meta[!duplicated(new_meta$gsm_id), ]
+no_met<-no_met[-719,]
+write.csv(no_met,file = "Subtypes.csv")
+non_met<-no_met$Subtype
+non_met<-data.frame(non_met)
+non_met
+row.names(non_met)<-no_met$gsm_id
+non_met
+write.csv(non_met,file = "Subtypes1.txt")
+#combined_expr_mat
+combined_expr_mat_in <- rownames_to_column(combined_expr_mat, var = "Index")
+combined_expr_mat_in<-data.frame(combined_expr_mat_in)
+#combined_expr_mat_in
+#combined_expr_mat_in<-as.integer(combined_expr_mat_in)
+combined_expr_mat_win<-combined_expr_mat_in[,-1]
+combined_expr_mat_win<-round(combined_expr_mat_win)
+#the data without the gene names
+combined_expr_mat_win
+#the data in matrix format
+#combined_expr_mat_win<-t(combined_expr_mat_win)
+count_comb<-as.matrix(combined_expr_mat_win)
+#length(count_comb)
+#ncol(count_comb)
+#nrow(new_meta)
+#count_comb<-as.integer(count_comb)
+des_comb<-DESeqDataSetFromMatrix(countData = count_comb,colData = non_met,design =~ non_met)
+des_es<-estimateSizeFactors(des_comb)
+des_des<-DESeq(des_es)
+```
+
+```{r}
+res_com<-results(des_des)
+res_com
+
+
+#count_comb
+#new_meta
+```
+
+```{r}
+res_filt <- res_com[which(res_com$padj < 0.05 & abs(res_com$log2FoldChange) > 1), ]
+res_filt
+```
+
+```{r}
+fil_com<-data.frame(combined_expr_mat,res_com)
+fil_com
+filt<-fil_com[which(fil_com$padj < 0.05 & abs(fil_com$log2FoldChange) > 1), ]
+filt
+write.csv(filt,file = "Differ_exp_genes_aml.csv")
+```
+
+
+
